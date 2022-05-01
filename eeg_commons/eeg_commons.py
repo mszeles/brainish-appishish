@@ -2,6 +2,7 @@ from enum import Enum
 from statistics import mean, median
 import datetime
 
+
 class DataType(Enum):
     EEG = 1
     GYROSCOPE = 2
@@ -40,11 +41,16 @@ class Data(object):
 
 class EEG(Data):
 
-    def __init__(self, channel_mapping, data_tupple):
+    @classmethod
+    def create_eeg_data_map(cls, channel_mapping, data_tuple):
+        data_per_channel = {}
+        for idx, data in enumerate(data_tuple):
+            data_per_channel[channel_mapping.get_channel(idx)] = data
+        return data_per_channel
+
+    def __init__(self, eeg_data_map):
         super(EEG, self).__init__(DataType.EEG)
-        self.data_per_channel = {}
-        for idx, data in enumerate(data_tupple):
-            self.data_per_channel[channel_mapping.get_channel(idx)] = data
+        self.data_per_channel = eeg_data_map
 
     def get_channel_value(self, eeg_channel):
         return self.data_per_channel[eeg_channel]
@@ -128,3 +134,14 @@ class EEGSeries:
 
     def get_median(self, channel):
         return self.time_series[channel].get_median()
+
+
+class EEGConverter:
+    def __init__(self, converter):
+        self.converter = converter
+
+    def convert(self, data):
+        converted_data = {}
+        for channel in data.data_per_channel.keys():
+            converted_data[channel] = self.converter.apply(data.data_per_channel[channel])
+        return EEG(converted_data)

@@ -1,14 +1,15 @@
 import datetime
 import queue
-from threading import Thread
+from threading import Thread, Lock
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 import muse.muse
-from eeg_commons.eeg_commons import EEGSeries, EEGChannel
+from eeg_commons.eeg_commons import EEGSeries, EEGChannel, EEGConverter
 from muse import muse
 from eeg_commons import eeg_commons
+from signal_processing.signal_processing import LowPassFilter
 
 CHANNEL_USED_FOR_DETECTION = EEGChannel.TP9
 BLINKING_START_FALL = 50
@@ -23,11 +24,13 @@ class BlinkDetector:
 
     def __init__(self):
         self.eeg_series = EEGSeries(muse.Muse.eeg_channels, 480)
+        self.eeg_series_lock = Lock()
         self.blinking_start_time = None
         self.max = 0
         self.data_queue = queue.Queue()
         self.running = False
         self.detector = Thread(target=self.detect)
+        self.converter = EEGConverter(LowPassFilter(50))
         print('Blink detector initialized')
 
     def start(self):
@@ -37,9 +40,14 @@ class BlinkDetector:
         print('Blink detector started')
         self.running = True
         while self.running:
-            eeg_data = self.data_queue.get(True, 1)
-            if eeg_data:
+            try:
+                eeg_data = self.data_queue.get(True, 1)
+                self.eeg_series_lock.acquire()
+                self.eeg_series.add(eeg_data)
+                self.eeg_series_lock.release()
                 self.detect_blink(eeg_data)
+            except queue.Empty as e:
+                pass
 
     def stop(self):
         self.running = False
@@ -50,10 +58,14 @@ class BlinkDetector:
         plt.ylabel(CHANNEL_USED_FOR_DETECTION)
         plt.xlim(0, 480)
         plt.ylim(400, 1200)
+        self.eeg_series_lock.acquire()
         plt.plot(self.eeg_series.time_series[CHANNEL_USED_FOR_DETECTION].elements)
+        self.eeg_series_lock.release()
 
     def detect_blink(self, data):
+        self.eeg_series_lock.acquire()
         base_level = self.eeg_series.get_median(CHANNEL_USED_FOR_DETECTION)
+        self.eeg_series_lock.release()
         channel_value = data.get_channel_value(CHANNEL_USED_FOR_DETECTION)
         if channel_value > self.max:
             self.max = channel_value
@@ -68,8 +80,11 @@ class BlinkDetector:
 
     def handle_eeg(self, data):
         if data is not None:
-            self.eeg_series.add(data)
-            self.data_queue.put(data)
+            if hasattr(self, 'converter'):
+                processed_data = self.converter.convert(data)
+            else:
+                processed_data = data
+            self.data_queue.put(processed_data)
 
 
 if __name__ == "__main__":

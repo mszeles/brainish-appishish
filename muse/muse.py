@@ -21,7 +21,7 @@ MUSE_EEG_CHANNEL_MAPPING = MuseEEGChannelMapping()
 
 class MuseEEG(EEG):
     def __init__(self, *args):
-        super(MuseEEG, self).__init__(MUSE_EEG_CHANNEL_MAPPING, args[0])
+        super(MuseEEG, self).__init__(EEG.create_eeg_data_map(MUSE_EEG_CHANNEL_MAPPING, args[0]))
 
 
 class Muse:
