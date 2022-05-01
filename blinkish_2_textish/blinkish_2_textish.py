@@ -12,8 +12,11 @@ from eeg_commons import eeg_commons
 from signal_processing.signal_processing import LowPassFilter
 
 CHANNEL_USED_FOR_DETECTION = EEGChannel.TP9
-BLINKING_START_FALL = 50
+BLINKING_START_FALL = 100
 BLINKING_STOP_RISE = 20
+
+DATA_DROP_RATIO = 4
+
 ip = '0.0.0.0'
 port = 5000
 
@@ -30,7 +33,8 @@ class BlinkDetector:
         self.data_queue = queue.Queue()
         self.running = False
         self.detector = Thread(target=self.detect)
-        self.converter = EEGConverter(LowPassFilter(50))
+        #self.converter = EEGConverter(LowPassFilter(50))
+        self.drop_counter = 0
         print('Blink detector initialized')
 
     def start(self):
@@ -79,6 +83,11 @@ class BlinkDetector:
             self.blinking_start_time = None
 
     def handle_eeg(self, data):
+        if self.drop_counter % DATA_DROP_RATIO != 0:
+            self.drop_counter += 1
+            return
+        else:
+            self.drop_counter = 1
         if data is not None:
             if hasattr(self, 'converter'):
                 processed_data = self.converter.convert(data)
