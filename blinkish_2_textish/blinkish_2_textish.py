@@ -1,5 +1,6 @@
 import datetime
 import queue
+from enum import Enum
 from threading import Thread, Lock
 
 import matplotlib.pyplot as plt
@@ -15,12 +16,21 @@ CHANNEL_USED_FOR_DETECTION = EEGChannel.TP9
 BLINKING_START_FALL = 100
 BLINKING_STOP_RISE = 20
 
+NORMAL_SHORT_BLINK_BORDER = 200
+SHORT_LONG_BLINK_BORDER = 450
+
 DATA_DROP_RATIO = 4
 
 ip = '0.0.0.0'
 port = 5000
 
 fig = plt.figure(figsize=(12, 6))
+
+
+class Blink(Enum):
+    NORMAL_BLINK = 1
+    SHORT_BLINK = 2
+    LONG_BLINK = 3
 
 
 class BlinkDetector:
@@ -33,7 +43,7 @@ class BlinkDetector:
         self.data_queue = queue.Queue()
         self.running = False
         self.detector = Thread(target=self.detect)
-        #self.converter = EEGConverter(LowPassFilter(50))
+        # self.converter = EEGConverter(LowPassFilter(50))
         self.drop_counter = 0
         print('Blink detector initialized')
 
@@ -73,13 +83,18 @@ class BlinkDetector:
         channel_value = data.get_channel_value(CHANNEL_USED_FOR_DETECTION)
         if channel_value > self.max:
             self.max = channel_value
-        # print('Base level: ' + str(base_level) + ' channel value: ' + str(channel_value) + ' max: ' + str(self.max))
         if (channel_value < base_level - BLINKING_START_FALL) and (self.blinking_start_time is None):
             self.blinking_start_time = datetime.datetime.now()
         if (self.blinking_start_time is not None) and (channel_value > base_level + BLINKING_STOP_RISE):
             blinking_end_time = datetime.datetime.now()
             blink_length = (blinking_end_time - self.blinking_start_time).total_seconds() * 1000
-            print('Blink with length: ' + str(blink_length))
+            if blink_length < NORMAL_SHORT_BLINK_BORDER:
+                blink = Blink.NORMAL_BLINK
+            elif blink_length < SHORT_LONG_BLINK_BORDER:
+                blink = Blink.SHORT_BLINK
+            else:
+                blink = Blink.LONG_BLINK
+            print(str(blink) + ' with length: ' + str(blink_length))
             self.blinking_start_time = None
 
     def handle_eeg(self, data):
