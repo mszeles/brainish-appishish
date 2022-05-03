@@ -1,23 +1,23 @@
 import datetime
 import queue
 from enum import Enum
-from threading import Thread, Lock
+from threading import Thread, Lock, Timer
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 import muse.muse
-from eeg_commons.eeg_commons import EEGSeries, EEGChannel, EEGConverter
+from eeg_commons.eeg_commons import EEGSeries, EEGChannel
 from muse import muse
 from eeg_commons import eeg_commons
-from signal_processing.signal_processing import LowPassFilter
 
 CHANNEL_USED_FOR_DETECTION = EEGChannel.TP9
 BLINKING_START_FALL = 100
-BLINKING_STOP_RISE = 20
+BLINKING_STOP_RISE = 35
 
 NORMAL_SHORT_BLINK_BORDER = 200
 SHORT_LONG_BLINK_BORDER = 450
+LONG_VERY_LONG_BLINK_BORDER = 1200
 
 DATA_DROP_RATIO = 4
 
@@ -31,6 +31,57 @@ class Blink(Enum):
     NORMAL_BLINK = 1
     SHORT_BLINK = 2
     LONG_BLINK = 3
+    VERY_LONG_BLINK = 4
+
+
+def get_character(morse_code):
+    for name, member in MorseCode.__members__.items():
+        if member.code == morse_code:
+            return member.character
+    return None
+
+
+class MorseCode(Enum):
+    A = ('a', '.-')
+    B = ('b', '-...')
+    C = ('c', '-.-.')
+    D = ('d', '-..')
+    E = ('e', '.')
+    F = ('f', '..-.')
+    G = ('g', '--.')
+    H = ('h', '....')
+    I = ('i', '..')
+    J = ('j', '.---')
+    K = ('k', '-.-')
+    L = ('l', '.-..')
+    M = ('m', '--')
+    N = ('n', '--')
+    O = ('o', '---')
+    P = ('p', '.--.')
+    Q = ('q', '--.-')
+    R = ('r', '.-.')
+    S = ('s', '...')
+    T = ('t', '-')
+    U = ('u', '..-')
+    V = ('v', '...-')
+    W = ('w', '.--')
+    X = ('x', '-..-')
+    Y = ('y', '-.--')
+    Z = ('z', '--..')
+    N_1 = ('1', '.----')
+    N_2 = ('2', '..---')
+    N_3 = ('3', '...--')
+    N_4 = ('4', '....-')
+    N_5 = ('5', '.....')
+    N_6 = ('6', '-....')
+    N_7 = ('7', '--...')
+    N_8 = ('8', '---..')
+    N_9 = ('9', '----.')
+    N_0 = ('0', '-----')
+
+    def __init__(self, character, code):
+        self.character = character
+        self.code = code
 
 
 class BlinkDetector:
@@ -45,6 +96,8 @@ class BlinkDetector:
         self.detector = Thread(target=self.detect)
         # self.converter = EEGConverter(LowPassFilter(50))
         self.drop_counter = 0
+        self.pause_timer = None
+        self.blinks = []
         print('Blink detector initialized')
 
     def start(self):
@@ -85,17 +138,34 @@ class BlinkDetector:
             self.max = channel_value
         if (channel_value < base_level - BLINKING_START_FALL) and (self.blinking_start_time is None):
             self.blinking_start_time = datetime.datetime.now()
+            if self.pause_timer is not None:
+                self.pause_timer.cancel()
         if (self.blinking_start_time is not None) and (channel_value > base_level + BLINKING_STOP_RISE):
             blinking_end_time = datetime.datetime.now()
             blink_length = (blinking_end_time - self.blinking_start_time).total_seconds() * 1000
-            if blink_length < NORMAL_SHORT_BLINK_BORDER:
-                blink = Blink.NORMAL_BLINK
-            elif blink_length < SHORT_LONG_BLINK_BORDER:
-                blink = Blink.SHORT_BLINK
-            else:
-                blink = Blink.LONG_BLINK
+            blink = BlinkDetector.classify_blink(blink_length)
             print(str(blink) + ' with length: ' + str(blink_length))
+            if blink == Blink.VERY_LONG_BLINK:
+                # Resetting conversion
+                self.blinks.clear()
+            else:
+                self.blinks.append(blink)
             self.blinking_start_time = None
+            if blink == Blink.SHORT_BLINK or blink == Blink.LONG_BLINK:
+                self.pause_timer = Timer(1, self.pause_detected, args=['Pause detected'])
+                self.pause_timer.start()
+
+    @staticmethod
+    def classify_blink(blink_length):
+        if blink_length < NORMAL_SHORT_BLINK_BORDER:
+            blink = Blink.NORMAL_BLINK
+        elif blink_length < SHORT_LONG_BLINK_BORDER:
+            blink = Blink.SHORT_BLINK
+        elif blink_length < LONG_VERY_LONG_BLINK_BORDER:
+            blink = Blink.LONG_BLINK
+        else:
+            blink = Blink.VERY_LONG_BLINK
+        return blink
 
     def handle_eeg(self, data):
         if self.drop_counter % DATA_DROP_RATIO != 0:
@@ -109,6 +179,16 @@ class BlinkDetector:
             else:
                 processed_data = data
             self.data_queue.put(processed_data)
+
+    def pause_detected(self, message):
+        morse_code = ''
+        for blink in self.blinks:
+            if blink == Blink.SHORT_BLINK:
+                morse_code += '.'
+            elif blink == Blink.LONG_BLINK:
+                morse_code += '-'
+        print('Converted "' + morse_code + '" to ' + str(get_character(morse_code)))
+        self.blinks.clear()
 
 
 if __name__ == "__main__":
