@@ -29,13 +29,20 @@ Muse has a non-public SDK for which I have applied, but I did not get any feedba
 
 In the long run I am planning to implement a direct implementation of the Muse bluetooth communication, so we won't need one additional program to access the live RAW EEG data.
 
+## Required Python packages
+- python-osc
+- matplotlib
+- scipy
+
 ## Setup
 
-1. Start Mind Monitor
-2. Turn on your Muse
-3. Tap the streaming icon
-4. Open the project in your favourite IDE (at the moment mine is IntelliJ IDEA)
-5. Start the app which you want to execute.
+1. Turn on your Muse
+2. Start Mind Monitor
+3. Open Mind Monitor's Settings and set the OSC Stream Target IP to your machine's IP (You can use ipconfig on Windows and ifconfig on Linux and Mac to get it)
+4. The program will connect to port 5000, but you can configure the OSC Stream Port also in case it is not right for you.
+5. Tap the streaming icon
+6. Open the project in your favourite IDE (at the moment mine is IntelliJ IDEA)
+7. Start the app which you want to execute.
 
 
 ## Currently Available Apps
