@@ -32,7 +32,7 @@ In the long run I am planning to implement a direct implementation of the Muse b
 ## Required Python packages
 - python-osc
 - matplotlib
-- 
+- scipy
 
 ## Setup
 
