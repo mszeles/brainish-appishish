@@ -15,7 +15,7 @@ In terms of EEG Muse provides 4 channels FT7, FT8, TP9 and TP10 on 256Hz with 12
 
 It also has gyroscope, accelerometer, PPG and thermistor sensor which opens new horizons for applications.
 
-You can [find more details in the Muse S technical specifiction](https://images-na.ssl-images-amazon.com/images/I/71A9NwYDx9S.pdf).
+You can [find more details in the Muse S technical specification](https://images-na.ssl-images-amazon.com/images/I/71A9NwYDx9S.pdf).
 I have implemented this project in a way that you can easily add support for other EEG devices too. It might need some tweak, please do not hesitate to open a new issue, and we will support your EEG brain sensor in no time, if it has a public API.
 
 ## Required software
@@ -33,6 +33,7 @@ In the long run I am planning to implement a direct implementation of the Muse b
 - python-osc
 - matplotlib
 - scipy
+- Kivy
 
 ## Setup
 
@@ -44,6 +45,31 @@ In the long run I am planning to implement a direct implementation of the Muse b
 6. Open the project in your favourite IDE (at the moment mine is IntelliJ IDEA)
 7. Start the app which you want to execute.
 
+## Creating Android app
+You can find everything on [Kivy's Android packaging page](https://kivy.org/doc/stable/guide/packaging-android.html)
+Here are the steps
+1. Get Buildozer:
+```
+git clone https://github.com/kivy/buildozer.git
+cd buildozer
+```
+ If you are a Linux, MacOS user, then you are ready to go. If you are on Windows like me, then WSL (Windows Subsystem for Linux) should be installed. [Click here to learn how to install it on WSL](https://docs.microsoft.com/en-us/windows/wsl/install)!
+ You will also need Python installed under your wsl: 
+```
+sudo apt update
+sudo apt upgrade
+sudo apt install python3 python3-pip ipython3
+```
+ 
+After you installed Python you can setup Buildozer. First, go to Buildozer directory then execute: 
+``` 
+sudo python3 setup.py install
+```    
+2. 
+3. 
+
+4. [Click here for instructions!](https://medium.com/@rhdzmota/python-development-on-the-windows-subsystem-for-linux-wsl-17a0fa1839d)
+5. Generate and upload APK to your connected Android device
 
 ## Currently Available Apps
 I do believe only our imagination is the limit to use the possibilities which we have in brainwaves. 4 channels is not a lot, but having strict limits boost creativity, so I do believe if we brainstorm together we can come up with amazing ideas.
