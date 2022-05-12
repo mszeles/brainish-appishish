@@ -19,12 +19,13 @@ NORMAL_SHORT_BLINK_BORDER = 200
 SHORT_LONG_BLINK_BORDER = 450
 LONG_VERY_LONG_BLINK_BORDER = 1200
 
-DATA_DROP_RATIO = 4
-
-ip = '0.0.0.0'
-port = 5000
+DATA_DROP_RATIO = 2
 
 fig = plt.figure(figsize=(12, 6))
+
+animation = None
+blink_detector = None
+my_muse = None
 
 
 class Blink(Enum):
@@ -32,13 +33,7 @@ class Blink(Enum):
     SHORT_BLINK = 2
     LONG_BLINK = 3
     VERY_LONG_BLINK = 4
-
-
-def get_character(morse_code):
-    for name, member in MorseCode.__members__.items():
-        if member.code == morse_code:
-            return member.character
-    return None
+    PAUSE = 5
 
 
 class MorseCode(Enum):
@@ -83,6 +78,12 @@ class MorseCode(Enum):
         self.character = character
         self.code = code
 
+    @classmethod
+    def get_character(cls, morse_code):
+        for name, member in MorseCode.__members__.items():
+            if member.code == morse_code:
+                return member.character
+        return None
 
 class BlinkDetector:
 
@@ -91,14 +92,17 @@ class BlinkDetector:
         self.eeg_series_lock = Lock()
         self.blinking_start_time = None
         self.max = 0
-        self.data_queue = queue.Queue()
+        self.data_queue = queue.Queue(0)
         self.running = False
-        self.detector = Thread(target=self.detect)
-        # self.converter = EEGConverter(LowPassFilter(50))
+        self.detector = Thread(target=self.detect, daemon=True)
         self.drop_counter = 0
         self.pause_timer = None
+        self.blink_listener_callbacks = []
         self.blinks = []
         print('Blink detector initialized')
+
+    def add_blink_listener_callback(self, callback):
+        self.blink_listener_callbacks.append(callback)
 
     def start(self):
         self.detector.start()
@@ -108,7 +112,7 @@ class BlinkDetector:
         self.running = True
         while self.running:
             try:
-                eeg_data = self.data_queue.get(True, 1)
+                eeg_data = self.data_queue.get(True, 0.1)
                 self.eeg_series_lock.acquire()
                 self.eeg_series.add(eeg_data)
                 self.eeg_series_lock.release()
@@ -144,7 +148,8 @@ class BlinkDetector:
             blinking_end_time = datetime.datetime.now()
             blink_length = (blinking_end_time - self.blinking_start_time).total_seconds() * 1000
             blink = BlinkDetector.classify_blink(blink_length)
-            print(str(blink) + ' with length: ' + str(blink_length))
+            for callback in self.blink_listener_callbacks:
+                callback(blink, blink_length)
             if blink == Blink.VERY_LONG_BLINK:
                 # Resetting conversion
                 self.blinks.clear()
@@ -181,23 +186,33 @@ class BlinkDetector:
             self.data_queue.put(processed_data)
 
     def pause_detected(self, message):
-        morse_code = ''
-        for blink in self.blinks:
-            if blink == Blink.SHORT_BLINK:
-                morse_code += '.'
-            elif blink == Blink.LONG_BLINK:
-                morse_code += '-'
-        print('Converted "' + morse_code + '" to ' + str(get_character(morse_code)))
-        self.blinks.clear()
+        for callback in self.blink_listener_callbacks:
+            callback(Blink.PAUSE, 0)
 
 
-if __name__ == "__main__":
-    my_muse = muse.Muse('0.0.0.0', 5000)
+def start_blink_detection(port, blink_listener, plot_eeg):
+    global my_muse
+    my_muse = muse.Muse('0.0.0.0', port)
     print('Register for ' + str(eeg_commons.DataType.EEG))
+    global blink_detector
     blink_detector = BlinkDetector()
+    blink_detector.add_blink_listener_callback(blink_listener)
     blink_detector.start()
     my_muse.add_listener(eeg_commons.DataType.EEG, blink_detector.handle_eeg)
     my_muse.start()
-    global animation
-    animation = FuncAnimation(fig, blink_detector.update_plot, interval=40)
-    plt.show()
+    if plot_eeg:
+        global animation
+        animation = FuncAnimation(fig, blink_detector.update_plot, interval=40)
+        plt.show()
+
+
+def stop_blink_detection():
+    print('Stopping blink detection')
+    blink_detector.stop()
+    print('Stopping Muse')
+    my_muse.stop()
+
+
+if __name__ == "__main__":
+    start_blink_detection(5000, True)
+

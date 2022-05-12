@@ -69,8 +69,9 @@ class Muse:
         self.server.serve_forever()
 
     def start(self):
-        thread = Thread(target=self.start_muse_listening)
-        thread.start()
+        self.listener_thread = Thread(target=self.start_muse_listening, daemon=True)
+        self.listener_thread.start()
 
     def stop(self):
-        self.server.close()
+        print('Shutdown OSC server')
+        self.server.shutdown()
